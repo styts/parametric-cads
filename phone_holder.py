@@ -11,45 +11,100 @@ phone_width = 60.4
 radius = phone_width / 4
 screw_hole_radius = 3  # 3mm screws hold the layers together
 screw_hole_shift = radius / 1.5
-layer_length = phone_width - radius / 2
+layer_length = phone_width
 
 material_height = 6
-layer_gap = 0.1
+layer_gap = 0.0
 
-top_layers = 3
-
-
-def phone_hole():
-    hole = square([phone_width, phone_thickness])
-    x_offset = (layer_length - phone_width) / 2
-    return right(x_offset)(back(phone_thickness / 2)(hole))
+top_layers = 2
 
 
-def layer():
-    # streched oval
-    body = hull()(circle(radius) + right(layer_length)(circle(radius)))
+class Layer(object):
+    def render(self):
+        # streched oval
+        body = hull()(circle(radius) + right(layer_length)(circle(radius)))
 
-    # used to hold the layers together
-    screw_holes = [
-        left(screw_hole_shift)(circle(screw_hole_radius)),
-        right(screw_hole_shift + layer_length)(circle(screw_hole_radius))
-    ]
-    body = body - screw_holes
+        # used to hold the layers together
+        screw_holes = [
+            left(screw_hole_shift)(circle(screw_hole_radius)),
+            right(screw_hole_shift + layer_length)(circle(screw_hole_radius))
+        ]
+        body = body - screw_holes
 
-    # phone slides into this hole
-    body = body - phone_hole()
+        # proper X-axis alignment
+        body = right(radius)(body)
 
-    # 2D -> 3D
-    body = linear_extrude(height=material_height)(body)
-    return body
+        # 2D -> 3D
+        self.body = linear_extrude(height=material_height)(body)
+
+
+class TopLayer(Layer):
+    def phone_hole(self):
+        hole = square([phone_width, phone_thickness])
+        x_offset = (phone_width / 4)
+        body = right(x_offset)(back(phone_thickness / 2)(hole))
+        body = linear_extrude(height=material_height)(body)
+        return body
+
+    def render(self):
+        super(TopLayer, self).render()
+        self.body -= self.phone_hole()
+
+
+class MidLayer(Layer):
+    hole_w = 10.8
+    hole_h = 7.2
+
+    def adapter_hole(self):
+        hole = square([self.hole_w, self.hole_h])
+        x_offset = layer_length / 2 + self.hole_w
+        body = right(x_offset)(
+            back(self.hole_h / 2)(hole))
+        return linear_extrude(height=material_height)(body)
+
+    def render(self):
+        super(MidLayer, self).render()
+        self.body -= self.adapter_hole()
+
+
+class BottomLayer(Layer):
+    def cable_hole(self):
+        w = 3
+        x_offset = layer_length / 2 + radius
+        sq = square([w, radius])
+        body = right(x_offset)(sq)
+        body = linear_extrude(height=material_height)(body)
+        return body
+
+    def render(self):
+        super(BottomLayer, self).render()
+        self.body -= self.cable_hole()
 
 
 def assembly():
+    ls = [
+        BottomLayer,
+        MidLayer,
+        MidLayer,
+        MidLayer,
+        MidLayer,
+        MidLayer,
+        TopLayer,
+        TopLayer,
+        TopLayer,
+        TopLayer
+    ]
+    print "adapter needs height 32mm and we have %smm" % (5 * material_height)
+    print "phone needs height 32mm and we have %smm" % (5 * material_height)
+    print "total height %smm" % (len(ls) * material_height)
     layers = []
-    for i in xrange(top_layers):
+    for i, l in enumerate(ls):
+        l_inst = l()
+        l_inst.render()
         layers.append(
-            up(i * (material_height + layer_gap))(layer())
+            up(i * (material_height + layer_gap))(l_inst.body)
         )
+
     return union()(layers)
 
 if __name__ == '__main__':
