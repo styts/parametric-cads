@@ -1,9 +1,0 @@
-d = 10;
-length = 4*d;
-/*$fn=50;*/
-
-linear_extrude()
-{
-    circle(d);
-    translate(length,0,0) circle(d);
-}
