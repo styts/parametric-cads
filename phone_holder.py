@@ -9,10 +9,14 @@ phone_thickness = 13.2
 phone_width = 60.4
 
 radius = phone_width / 4
-screw_hole_radius = 3
+screw_hole_radius = 3  # 3mm screws hold the layers together
 screw_hole_shift = radius / 1.5
 layer_length = phone_width - radius / 2
+
 material_height = 6
+layer_gap = 0.1
+
+top_layers = 3
 
 
 def phone_hole():
@@ -41,7 +45,12 @@ def layer():
 
 
 def assembly():
-    return layer()
+    layers = []
+    for i in xrange(top_layers):
+        layers.append(
+            up(i * (material_height + layer_gap))(layer())
+        )
+    return union()(layers)
 
 if __name__ == '__main__':
     out_dir = os.path.join(os.curdir, 'output')
