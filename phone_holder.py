@@ -5,15 +5,18 @@ from solid.utils import left, right, back, up, union, scad_render_to_file
 
 # rendering parameters
 SEGMENTS = 50  # increase for more smoothness
-layer_gap = 0.0  # > 0 to visualize layer breaks
+layer_gap = 0.1  # > 0 to visualize layer breaks
 
+# customizable model parameters
 phone_thickness = 13.2
 phone_width = 60.4
 
+# constraints
 radius = phone_width / 4  # curvature left/right
 screw_hole_radius = 3  # 3mm screws hold the layers together
 screw_hole_shift = radius / 1.5
 
+# what height layers to laser-cut
 material_height = 6
 
 
