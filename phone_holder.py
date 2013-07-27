@@ -1,11 +1,13 @@
 import os
 
-from solid import circle, square, hull, linear_extrude
-from solid.utils import left, right, back, up, union, scad_render_to_file
+from solid import circle, square, hull, linear_extrude, color
+from solid.utils import left, right, forward, back, up, union
+from solid.utils import scad_render_to_file
 
 # rendering parameters
 SEGMENTS = 50  # increase for more smoothness
-layer_gap = 0.1  # > 0 to visualize layer breaks
+layer_z_gap = 0.1  # > 0 to visualize layer breaks
+layer_y_gap = 20  # spacing for flat forward movement
 
 # customizable model parameters
 phone_thickness = 13.2
@@ -21,6 +23,8 @@ material_height = 6
 
 
 class Layer(object):
+    color = "yellow"
+
     def make_hole(self):
         try:
             getattr(self, 'hole')
@@ -29,7 +33,6 @@ class Layer(object):
 
         ho = square([self.hole.x, self.hole.y])
         body = right(self.hole.x_offset)(back(self.hole.y_offset())(ho))
-        body = linear_extrude(height=material_height)(body)
         return body
 
     def __init__(self):
@@ -47,7 +50,7 @@ class Layer(object):
         body = right(radius)(body)
 
         # 2D -> 3D
-        self.body = linear_extrude(height=material_height)(body)
+        self.body = body
 
         # possible hole
         self.body -= self.make_hole()
@@ -63,7 +66,7 @@ class Hole(object):
         self.x_offset = x_offset
 
     def y_offset(self):
-        return 0
+        return 4
 
 
 class CenteredHole(Hole):
@@ -77,42 +80,73 @@ class TopLayer(Layer):
 
 class MidLayer(Layer):
     hole = CenteredHole(phone_width / 2 + 10.8, 10.8, 7.2)
+    color = "blue"
 
 
 class BottomLayer(Layer):
-    hole = Hole(phone_width / 2 + radius, 3, radius)
+    hole = Hole(phone_width / 2 + radius, 3, radius + 5)
+    color = "green"
+
+
+ls = [
+    BottomLayer,
+    MidLayer,
+    MidLayer,
+    MidLayer,
+    MidLayer,
+    MidLayer,
+    TopLayer,
+    TopLayer,
+    TopLayer,
+    TopLayer
+]
 
 
 def assembly():
-    ls = [
-        BottomLayer,
-        MidLayer,
-        MidLayer,
-        MidLayer,
-        MidLayer,
-        MidLayer,
-        TopLayer,
-        TopLayer,
-        TopLayer,
-        TopLayer
-    ]
     print "adapter needs height 32mm and we have %smm" % (5 * material_height)
     print "phone needs height 32mm and we have %smm" % (5 * material_height)
     print "total height %smm" % (len(ls) * material_height)
     layers = []
     for i, l in enumerate(ls):
         l_inst = l()
-        layers.append(
-            up(i * (material_height + layer_gap))(l_inst.get_body())
-        )
+        layer = linear_extrude(height=material_height)(l_inst.get_body())
+        layer = up(i * (material_height + layer_z_gap))(layer)
+        layer = color(l_inst.color)(layer)
+        layers.append(layer)
 
     return union()(layers)
 
+
+def flat():
+    def offset(i, break_after=5):
+        x = 0 if i < break_after else phone_width + layer_y_gap + radius
+        y = i * (radius + layer_y_gap)
+        y = y - break_after * (radius + layer_y_gap) if x > 0 else y
+        return x, y
+
+    layers = []
+    for i, l in enumerate(ls):
+        x, y = offset(i)
+        l_inst = l()
+        layer = l_inst.get_body()
+        layer = color(l_inst.color)(layer)
+        layers.append(right(x)(forward(y)(layer)))
+
+    return union()(layers)
+
+
 if __name__ == '__main__':
     out_dir = os.path.join(os.curdir, 'output')
-    file_out = os.path.join(out_dir, '%s.scad' % __file__[:-3])
-    a = assembly()
-    print "SCAD file written to: %s" % file_out
-    scad_render_to_file(a, file_out, file_header='$fn = %s;' % SEGMENTS)
+
+    a_3d = assembly()
+    a_lc = flat()
+
+    file_out = os.path.join(out_dir, '%s_3d.scad' % __file__[:-3])
+    print "3D SCAD file written to: %s" % file_out
+    scad_render_to_file(a_3d, file_out, file_header='$fn = %s;' % SEGMENTS)
+
+    file_out = os.path.join(out_dir, '%s_2d.scad' % __file__[:-3])
+    print "LaserCut SCAD file written to: %s" % file_out
+    scad_render_to_file(a_lc, file_out, file_header='$fn = %s;' % SEGMENTS)
 
 # :autocmd BufWritePost * silent! !make
