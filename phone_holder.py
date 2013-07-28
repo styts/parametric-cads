@@ -137,6 +137,8 @@ def flat():
 
 if __name__ == '__main__':
     out_dir = os.path.join(os.curdir, 'output')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     a_3d = assembly()
     a_lc = flat()
