@@ -1,22 +1,20 @@
-import os
-
 from solid import circle, square, hull, linear_extrude, color
 from solid.utils import left, right, forward, back, up, union
-from solid.utils import scad_render_to_file
+
+from utils import write_scads
 
 # rendering parameters
-SEGMENTS = 50  # increase for more smoothness
 layer_z_gap = 0.1  # > 0 to visualize layer breaks
-layer_y_gap = 20  # spacing for flat forward movement
+layer_y_gap = 11  # spacing for flat forward movement
 
 # customizable model parameters
 phone_thickness = 13.2
 phone_width = 60.4
 
 # constraints
-radius = phone_width / 4  # curvature left/right
-screw_hole_radius = 3  # 3mm screws hold the layers together
-screw_hole_shift = radius / 1.5
+radius = phone_width / 7  # curvature left/right
+screw_hole_radius = 1.5  # 3mm screws hold the layers together
+screw_hole_shift = radius / 2
 
 # what height layers to laser-cut
 material_height = 6
@@ -25,66 +23,55 @@ material_height = 6
 class Layer(object):
     color = "yellow"
 
-    def make_hole(self):
-        try:
-            getattr(self, 'hole')
-        except:
-            return
-
-        ho = square([self.hole.x, self.hole.y])
-        body = right(self.hole.x_offset)(back(self.hole.y_offset())(ho))
-        return body
+    def screw_holes(self):
+        return [
+            left(screw_hole_shift)(circle(screw_hole_radius)),
+            right(screw_hole_shift + phone_width)(circle(screw_hole_radius))
+        ]
 
     def __init__(self):
         # stretched oval
         body = hull()(circle(radius) + right(phone_width)(circle(radius)))
 
         # used to hold the layers together
-        screw_holes = [
-            left(screw_hole_shift)(circle(screw_hole_radius)),
-            right(screw_hole_shift + phone_width)(circle(screw_hole_radius))
-        ]
-        body = body - screw_holes
+        body = body - self.screw_holes()
 
-        # proper X-axis alignment
-        body = right(radius)(body)
-
-        # 2D -> 3D
+        # set self
         self.body = body
 
-        # possible hole
-        self.body -= self.make_hole()
+        # proper X-axis alignment
+        self.body = right(radius)(body)
 
-    def get_body(self):
-        return self.body
+        # cut possible hole
+        if self.hole:
+            self.body -= self.hole.make_hole()
 
 
 class Hole(object):
-    def __init__(self, x_offset, x, y):
-        self.x = x
-        self.y = y
-        self.x_offset = x_offset
+    def make_hole(self):
+        body = square([self.width, self.height])
+        layer_width = (phone_width + 2 * radius)
+        moved_right = right(layer_width / 2 - self.width / 2)(body)
+        moved_down = back(self.height / 2 + self.y_adjust)(moved_right)
+        return moved_down
 
-    def y_offset(self):
-        return 4
-
-
-class CenteredHole(Hole):
-    def y_offset(self):
-        return self.y / 2
+    def __init__(self, width, height, y_adjust=0):
+        self.width = width
+        self.height = height
+        self.y_adjust = y_adjust
 
 
 class TopLayer(Layer):
-    hole = CenteredHole(phone_width / 4, phone_width, phone_thickness)
+    hole = Hole(phone_width, phone_thickness)
 
 
 class MidLayer(Layer):
-    hole = CenteredHole(phone_width / 2 + 10.8, 10.8, 7.2)
+    hole = Hole(10.8, 7.2)
     color = "blue"
 
 
 class BottomLayer(Layer):
-    hole = Hole(phone_width / 2 + radius, 3, radius + 5)
+    hole = Hole(3.5, radius + 5, y_adjust=-3)
     color = "green"
 
 
@@ -109,7 +96,7 @@ def assembly():
     layers = []
     for i, l in enumerate(ls):
         l_inst = l()
-        layer = linear_extrude(height=material_height)(l_inst.get_body())
+        layer = linear_extrude(height=material_height)(l_inst.body)
         layer = up(i * (material_height + layer_z_gap))(layer)
         layer = color(l_inst.color)(layer)
         layers.append(layer)
@@ -128,7 +115,7 @@ def flat():
     for i, l in enumerate(ls):
         x, y = offset(i)
         l_inst = l()
-        layer = l_inst.get_body()
+        layer = l_inst.body
         layer = color(l_inst.color)(layer)
         layers.append(right(x)(forward(y)(layer)))
 
@@ -136,19 +123,6 @@ def flat():
 
 
 if __name__ == '__main__':
-    out_dir = os.path.join(os.curdir, 'output')
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    a_3d = assembly()
-    a_lc = flat()
-
-    file_out = os.path.join(out_dir, '%s_3d.scad' % __file__[:-3])
-    print "3D SCAD file written to: %s" % file_out
-    scad_render_to_file(a_3d, file_out, file_header='$fn = %s;' % SEGMENTS)
-
-    file_out = os.path.join(out_dir, '%s_2d.scad' % __file__[:-3])
-    print "LaserCut SCAD file written to: %s" % file_out
-    scad_render_to_file(a_lc, file_out, file_header='$fn = %s;' % SEGMENTS)
+    write_scads(assembly=assembly(), flat=flat(), filename=__file__)
 
 # :autocmd BufWritePost * silent! !make
