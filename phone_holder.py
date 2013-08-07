@@ -17,7 +17,7 @@ screw_hole_radius = 1.5  # 3mm screws hold the layers together
 screw_hole_shift = radius / 2
 
 # what height layers to laser-cut
-material_height = 6
+material_height = 4
 
 
 class Layer(object):
@@ -82,6 +82,10 @@ ls = [
     MidLayer,
     MidLayer,
     MidLayer,
+    MidLayer,
+    MidLayer,
+    TopLayer,
+    TopLayer,
     TopLayer,
     TopLayer,
     TopLayer,
@@ -90,8 +94,8 @@ ls = [
 
 
 def assembly():
-    print "adapter needs height 32mm and we have %smm" % (5 * material_height)
-    print "phone needs height 32mm and we have %smm" % (5 * material_height)
+    print "adapter needs height 32mm and we have %smm" % (8 * material_height)
+    print "phone needs height 32mm and we have %smm" % (6 * material_height)
     print "total height %smm" % (len(ls) * material_height)
     layers = []
     for i, l in enumerate(ls):
